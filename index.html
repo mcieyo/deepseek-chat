@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-    <title>DeepSeek 智能伴侣 · IndexedDB 大容量版</title>
-    <!-- 引入 localForage，提供简单的 IndexedDB API -->
+    <title>DeepSeek 智能伴侣 · 移动优化版</title>
     <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
     <style>
         * {
@@ -26,8 +25,6 @@
             --assistant-bubble: #e5e5ea;
             --assistant-text: #1f2937;
             --accent: #10a37f;
-            --danger: #ef4444;
-            --shadow: 0 1px 2px rgba(0,0,0,0.05);
             --sidebar-bg: #ffffff;
         }
 
@@ -39,7 +36,6 @@
             --text-secondary: #9ca3af;
             --border: #3f3f4e;
             --user-bubble: #3b82f6;
-            --user-text: #ffffff;
             --assistant-bubble: #3f3f4e;
             --assistant-text: #f3f4f6;
             --sidebar-bg: #252536;
@@ -52,14 +48,18 @@
             transition: background 0.2s, color 0.2s;
             height: 100vh;
             overflow: hidden;
+            position: fixed;
+            width: 100%;
         }
 
         .app {
             display: flex;
-            height: 100vh;
+            height: 100%;
+            width: 100%;
             position: relative;
         }
 
+        /* 侧边栏 */
         .sidebar {
             position: fixed;
             top: 0;
@@ -97,7 +97,7 @@
             color: var(--text-secondary);
         }
 
-        .role-manager, .conversation-list, .backup-section {
+        .role-manager, .conversation-list, .settings-section, .backup-section {
             padding: 12px;
         }
 
@@ -117,7 +117,6 @@
             cursor: pointer;
             margin-bottom: 6px;
             background: var(--bg-primary);
-            transition: background 0.1s;
         }
 
         .role-item.active, .conv-item.active {
@@ -131,11 +130,6 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-        }
-
-        .role-actions, .conv-actions {
-            display: flex;
-            gap: 8px;
         }
 
         .icon-btn {
@@ -155,6 +149,41 @@
             font-size: 12px;
             margin-top: 8px;
             width: 100%;
+            border: none;
+        }
+
+        /* 模式切换和主题按钮（侧边栏内） */
+        .mode-switch-side {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .mode-btn-side {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            border-radius: 28px;
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid var(--border);
+        }
+        .mode-btn-side.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        .theme-btn-side {
+            width: 100%;
+            padding: 8px;
+            border-radius: 28px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            margin-top: 8px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 14px;
         }
 
         .backup-buttons {
@@ -170,100 +199,72 @@
             padding: 6px;
             font-size: 12px;
             cursor: pointer;
-            color: var(--text-primary);
             text-align: center;
         }
 
+        /* 聊天主区域 */
         .chat-main {
             flex: 1;
             display: flex;
             flex-direction: column;
             height: 100%;
             width: 100%;
+            position: relative;
         }
 
+        /* 精简头部：只保留菜单、当前信息、API按钮 */
         .chat-header {
-            padding: 12px 16px;
+            padding: 8px 12px;
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border);
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            backdrop-filter: blur(10px);
-            position: sticky;
-            top: 0;
-            z-index: 10;
             gap: 8px;
-            flex-wrap: wrap;
+            flex-shrink: 0;
         }
-
         .menu-btn {
             font-size: 24px;
             background: none;
             border: none;
             cursor: pointer;
             color: var(--text-primary);
+            line-height: 1;
         }
-
-        .header-actions {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        .mode-switch {
-            display: flex;
-            background: var(--bg-primary);
-            border-radius: 32px;
-            padding: 2px;
-            border: 1px solid var(--border);
-        }
-        .mode-btn {
-            padding: 6px 12px;
-            font-size: 12px;
+        .current-info {
+            flex: 1;
+            font-size: 14px;
             font-weight: 500;
-            border-radius: 28px;
-            cursor: pointer;
-            background: transparent;
-            color: var(--text-secondary);
-            transition: all 0.2s;
-            border: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .mode-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-
-        .theme-toggle, .api-settings-btn {
+        .api-icon-btn {
             background: none;
             border: none;
-            font-size: 20px;
+            font-size: 22px;
             cursor: pointer;
+            color: var(--text-primary);
+            padding: 4px;
         }
 
+        /* 消息区域 */
         .messages-area {
             flex: 1;
             overflow-y: auto;
-            padding: 16px 12px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 12px;
+            -webkit-overflow-scrolling: touch;
         }
 
         .message {
             display: flex;
             flex-direction: column;
             max-width: 85%;
-            position: relative;
         }
-
-        .message.user {
-            align-self: flex-end;
-        }
-
-        .message.assistant {
-            align-self: flex-start;
-        }
+        .message.user { align-self: flex-end; }
+        .message.assistant { align-self: flex-start; }
 
         .bubble {
             padding: 10px 14px;
@@ -272,30 +273,23 @@
             font-size: 15px;
             line-height: 1.4;
         }
-
         .user .bubble {
             background: var(--user-bubble);
             color: var(--user-text);
             border-bottom-right-radius: 4px;
         }
-
         .assistant .bubble {
             background: var(--assistant-bubble);
             color: var(--assistant-text);
             border-bottom-left-radius: 4px;
         }
-
         .msg-actions {
             display: flex;
             gap: 12px;
             margin-top: 6px;
             justify-content: flex-end;
         }
-
-        .assistant .msg-actions {
-            justify-content: flex-start;
-        }
-
+        .assistant .msg-actions { justify-content: flex-start; }
         .msg-action-btn {
             background: none;
             border: none;
@@ -305,26 +299,27 @@
             padding: 4px;
         }
 
+        /* 输入区域固定在底部 */
         .input-area {
-            padding: 12px 16px;
+            padding: 10px 12px;
             background: var(--bg-secondary);
             border-top: 1px solid var(--border);
             display: flex;
-            gap: 12px;
+            gap: 10px;
             align-items: center;
+            flex-shrink: 0;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
         }
-
         #messageInput {
             flex: 1;
-            padding: 12px;
+            padding: 10px 14px;
             border: 1px solid var(--border);
             border-radius: 24px;
             background: var(--bg-primary);
             color: var(--text-primary);
-            font-size: 15px;
+            font-size: 16px;
             outline: none;
         }
-
         #sendBtn {
             background: var(--accent);
             border: none;
@@ -334,6 +329,9 @@
             color: white;
             font-size: 20px;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .loading {
@@ -346,6 +344,7 @@
             width: fit-content;
         }
 
+        /* 模态框 */
         .modal {
             position: fixed;
             top: 0;
@@ -361,12 +360,10 @@
             opacity: 0;
             transition: 0.2s;
         }
-
         .modal.show {
             visibility: visible;
             opacity: 1;
         }
-
         .modal-content {
             background: var(--surface);
             width: 90%;
@@ -374,7 +371,6 @@
             border-radius: 24px;
             padding: 20px;
         }
-
         .modal-content input, .modal-content textarea {
             width: 100%;
             margin: 12px 0;
@@ -384,13 +380,11 @@
             background: var(--bg-primary);
             color: var(--text-primary);
         }
-
         .modal-buttons {
             display: flex;
             gap: 12px;
             justify-content: flex-end;
         }
-
         button {
             background: var(--accent);
             border: none;
@@ -399,18 +393,14 @@
             color: white;
             cursor: pointer;
         }
-
-        @media (max-width: 600px) {
-            .mode-btn { padding: 4px 10px; font-size: 11px; }
-            .chat-header { padding: 8px 12px; }
-        }
     </style>
 </head>
 <body>
 <div class="app">
+    <!-- 侧边栏 -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <span>📁 历史 & 角色</span>
+            <span>📁 历史 & 设置</span>
             <button class="close-sidebar" id="closeSidebarBtn">✕</button>
         </div>
         <div class="role-manager">
@@ -423,6 +413,15 @@
             <div id="convList"></div>
             <button id="newConvBtn" class="add-btn">+ 新对话</button>
         </div>
+        <!-- 设置区域：模式切换 + 主题切换 -->
+        <div class="settings-section">
+            <div class="section-title">⚙️ 设置</div>
+            <div class="mode-switch-side" id="modeSwitchSide">
+                <div class="mode-btn-side" data-mode="fast">⚡ 快速</div>
+                <div class="mode-btn-side" data-mode="deep">🧠 深度思考</div>
+            </div>
+            <div class="theme-btn-side" id="themeBtnSide">🌙 夜间模式</div>
+        </div>
         <div class="backup-section">
             <div class="section-title">💾 备份与恢复</div>
             <div class="backup-buttons">
@@ -430,24 +429,15 @@
                 <button id="importBackupBtn" class="backup-btn">📥 导入备份</button>
             </div>
             <input type="file" id="importFileInput" accept=".json" style="display:none;" />
-            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 8px; text-align: center;">
-                定期导出备份，防止数据丢失
-            </div>
         </div>
     </div>
 
+    <!-- 聊天主界面 -->
     <div class="chat-main">
         <div class="chat-header">
             <button class="menu-btn" id="menuBtn">☰</button>
-            <div id="currentInfo" style="font-weight:500; font-size:14px; flex:1; min-width: 100px;"></div>
-            <div class="mode-switch" id="modeSwitch">
-                <button class="mode-btn" data-mode="fast">⚡ 快速</button>
-                <button class="mode-btn" data-mode="deep">🧠 深度思考</button>
-            </div>
-            <div class="header-actions">
-                <button class="theme-toggle" id="themeToggleBtn">🌙</button>
-                <button class="api-settings-btn" id="apiSettingsBtn">🔑</button>
-            </div>
+            <div class="current-info" id="currentInfo">加载中...</div>
+            <button class="api-icon-btn" id="apiSettingsBtn">🔑</button>
         </div>
 
         <div class="messages-area" id="messagesArea">
@@ -461,11 +451,11 @@
     </div>
 </div>
 
-<!-- 模态框 API/角色编辑 -->
+<!-- 模态框 -->
 <div id="apiModal" class="modal">
     <div class="modal-content">
         <h3>DeepSeek API Key</h3>
-        <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxx" autocomplete="off">
+        <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxx">
         <div class="modal-buttons">
             <button id="saveApiBtn">保存</button>
             <button id="closeApiBtn">取消</button>
@@ -477,7 +467,7 @@
     <div class="modal-content">
         <h3 id="roleModalTitle">角色信息</h3>
         <input type="text" id="roleName" placeholder="角色名称">
-        <textarea id="rolePrompt" rows="3" placeholder="系统提示词 (例如: 你是一个温柔的心理咨询师...)"></textarea>
+        <textarea id="rolePrompt" rows="3" placeholder="系统提示词"></textarea>
         <input type="text" id="roleAvatar" placeholder="头像emoji (默认🤖)">
         <div class="modal-buttons">
             <button id="confirmRoleBtn">确认</button>
@@ -487,7 +477,7 @@
 </div>
 
 <script>
-    // ---------- 存储 KEY (用于 localForage) ----------
+    // ---------- 存储KEY ----------
     const STORAGE_KEYS = {
         ROLES: 'deepseek_roles',
         CONVERSATIONS: 'deepseek_conversations',
@@ -497,25 +487,17 @@
         THEME: 'deepseek_theme',
         MODE: 'deepseek_mode'
     };
-
     const DEFAULT_ROLES = [
         { id: 'role_1', name: '默认助手', systemPrompt: '你是一个有帮助的AI助手。', avatar: '🤖' },
         { id: 'role_2', name: '诗人', systemPrompt: '你是一位浪漫的诗人，用优美的语言回答。', avatar: '📖' }
     ];
 
-    // 全局数据
-    let roles = [];
-    let conversations = [];
-    let currentRoleId = null;
-    let currentConversationId = null;
-    let apiKey = '';
-    let currentMode = 'fast';
+    let roles = [], conversations = [], currentRoleId = null, currentConversationId = null, apiKey = '', currentMode = 'fast';
 
-    // DOM 元素
+    // DOM
     const sidebar = document.getElementById('sidebar');
     const menuBtn = document.getElementById('menuBtn');
     const closeSidebarBtn = document.getElementById('closeSidebarBtn');
-    const themeToggle = document.getElementById('themeToggleBtn');
     const messagesArea = document.getElementById('messagesArea');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
@@ -529,45 +511,20 @@
     const exportBackupBtn = document.getElementById('exportBackupBtn');
     const importBackupBtn = document.getElementById('importBackupBtn');
     const importFileInput = document.getElementById('importFileInput');
-
     const apiModal = document.getElementById('apiModal');
     const roleModal = document.getElementById('roleModal');
+    const modeSwitchSide = document.getElementById('modeSwitchSide');
+    const themeBtnSide = document.getElementById('themeBtnSide');
     let editingRoleId = null;
 
-    // ---------- 封装 IndexedDB 存储 (使用 localForage) ----------
+    // IndexedDB 封装
     async function saveData(key, value) {
-        try {
-            await localforage.setItem(key, value);
-        } catch (err) {
-            console.error(`保存 ${key} 失败`, err);
-            if (err.name === 'QuotaExceededError') {
-                alert('⚠️ 存储空间不足！请删除一些旧对话或导出备份后清空数据。');
-            } else {
-                alert(`保存失败: ${err.message}`);
-            }
-        }
+        try { await localforage.setItem(key, value); } catch(e) { alert('保存失败: '+e.message); }
     }
-
     async function loadData(key, defaultValue) {
-        try {
-            const val = await localforage.getItem(key);
-            return val !== null ? val : defaultValue;
-        } catch (err) {
-            console.error(`读取 ${key} 失败`, err);
-            return defaultValue;
-        }
+        try { const v = await localforage.getItem(key); return v !== null ? v : defaultValue; } catch(e) { return defaultValue; }
     }
-
-    async function removeData(key) {
-        try {
-            await localforage.removeItem(key);
-        } catch (err) {
-            console.error(`删除 ${key} 失败`, err);
-        }
-    }
-
-    // 保存全部状态 (异步，不阻塞UI)
-    async function saveAllToLocal() {
+    async function saveAll() {
         await Promise.all([
             saveData(STORAGE_KEYS.ROLES, roles),
             saveData(STORAGE_KEYS.CONVERSATIONS, conversations),
@@ -579,7 +536,6 @@
         ]);
     }
 
-    // 初始化加载数据
     async function loadDataFromLocal() {
         roles = await loadData(STORAGE_KEYS.ROLES, DEFAULT_ROLES);
         conversations = await loadData(STORAGE_KEYS.CONVERSATIONS, []);
@@ -589,346 +545,222 @@
         const savedTheme = await loadData(STORAGE_KEYS.THEME, 'light');
         if (savedTheme === 'dark') document.body.classList.add('dark');
         currentMode = await loadData(STORAGE_KEYS.MODE, 'fast');
-
-        // 数据完整性修复
         if (!roles.length) roles = DEFAULT_ROLES;
-        if (!currentRoleId || !roles.find(r => r.id === currentRoleId)) {
-            currentRoleId = roles[0]?.id;
-        }
-        // 为每个角色至少创建一个对话
+        if (!currentRoleId || !roles.find(r=>r.id===currentRoleId)) currentRoleId = roles[0]?.id;
         for (let role of roles) {
-            if (!conversations.some(c => c.roleId === role.id)) {
-                const newId = 'conv_' + Date.now() + '_' + Math.random();
-                conversations.push({
-                    id: newId,
-                    roleId: role.id,
-                    name: '新对话',
-                    messages: [],
-                    createdAt: Date.now()
-                });
+            if (!conversations.some(c=>c.roleId===role.id)) {
+                conversations.push({ id: 'conv_'+Date.now()+'_'+Math.random(), roleId: role.id, name: '新对话', messages: [] });
             }
         }
-        // 确保当前对话存在且属于当前角色
-        let convValid = conversations.find(c => c.id === currentConversationId && c.roleId === currentRoleId);
+        let convValid = conversations.find(c=>c.id===currentConversationId && c.roleId===currentRoleId);
         if (!convValid) {
-            const firstConv = conversations.find(c => c.roleId === currentRoleId);
-            if (firstConv) currentConversationId = firstConv.id;
-            else {
-                const newId = 'conv_' + Date.now() + '_' + Math.random();
-                conversations.push({ id: newId, roleId: currentRoleId, name: '新对话', messages: [] });
-                currentConversationId = newId;
-            }
+            let first = conversations.find(c=>c.roleId===currentRoleId);
+            currentConversationId = first ? first.id : (()=>{ let n='conv_'+Date.now(); conversations.push({id:n,roleId:currentRoleId,name:'新对话',messages:[]}); return n; })();
         }
-        await saveAllToLocal(); // 确保默认数据写入
+        await saveAll();
     }
 
-    // 模式相关
     function setMode(mode) {
         currentMode = mode;
         saveData(STORAGE_KEYS.MODE, mode);
-        document.querySelectorAll('.mode-btn').forEach(btn => {
+        document.querySelectorAll('.mode-btn-side').forEach(btn => {
             if (btn.dataset.mode === mode) btn.classList.add('active');
             else btn.classList.remove('active');
         });
     }
-
     function getModeParams() {
-        if (currentMode === 'deep') {
-            return { temperature: 0.3, max_tokens: 2048, extra_system: " 请你进行深度思考，分步骤推理，给出详细、透彻的解答。" };
-        } else {
-            return { temperature: 0.8, max_tokens: 1024, extra_system: " 请简洁高效地回答。" };
-        }
+        if (currentMode === 'deep') return { temperature:0.3, max_tokens:2048, extra_system:" 请你深度思考，分步骤推理，给出详细解答。" };
+        return { temperature:0.8, max_tokens:1024, extra_system:" 请简洁高效回答。" };
     }
+    function getCurrentConversation() { return conversations.find(c=>c.id===currentConversationId); }
+    function getCurrentRole() { return roles.find(r=>r.id===currentRoleId); }
 
-    // 辅助函数
-    function getCurrentConversation() { return conversations.find(c => c.id === currentConversationId); }
-    function getCurrentRole() { return roles.find(r => r.id === currentRoleId); }
-
-    // 渲染 UI (所有会修改DOM的函数)
-    function renderUI() {
-        renderRoleList();
-        renderConvList();
-        renderMessages();
+    function renderUI() { renderRoleList(); renderConvList(); renderMessages(); updateHeaderInfo(); setMode(currentMode); }
+    function updateHeaderInfo() {
         const role = getCurrentRole();
         const conv = getCurrentConversation();
-        currentInfoSpan.innerText = `${role?.avatar || '🎭'} ${role?.name || '角色'} · ${conv?.name || '对话'}`;
-        setMode(currentMode);
+        currentInfoSpan.innerText = `${role?.avatar||'🎭'} ${role?.name||'角色'} · ${conv?.name||'对话'}`;
     }
 
     function renderRoleList() {
         roleListDiv.innerHTML = '';
         roles.forEach(role => {
             const div = document.createElement('div');
-            div.className = `role-item ${currentRoleId === role.id ? 'active' : ''}`;
-            div.innerHTML = `
-                <span class="role-name">${role.avatar || '👤'} ${escapeHtml(role.name)}</span>
-                <div class="role-actions">
-                    <button class="icon-btn edit-role" data-id="${role.id}">✏️</button>
-                    <button class="icon-btn delete-role" data-id="${role.id}">🗑️</button>
-                </div>
-            `;
-            div.addEventListener('click', (e) => {
-                if (e.target.classList.contains('edit-role') || e.target.classList.contains('delete-role')) return;
-                switchRole(role.id);
-            });
+            div.className = `role-item ${currentRoleId===role.id?'active':''}`;
+            div.innerHTML = `<span class="role-name">${role.avatar||'👤'} ${escapeHtml(role.name)}</span>
+                <div class="role-actions"><button class="icon-btn edit-role" data-id="${role.id}">✏️</button><button class="icon-btn delete-role" data-id="${role.id}">🗑️</button></div>`;
+            div.addEventListener('click', (e) => { if(!e.target.classList.contains('edit-role') && !e.target.classList.contains('delete-role')) switchRole(role.id); });
             roleListDiv.appendChild(div);
         });
-        document.querySelectorAll('.edit-role').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openRoleModal(btn.dataset.id);
-            });
-        });
-        document.querySelectorAll('.delete-role').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const id = btn.dataset.id;
-                if (roles.length <= 1) { alert('至少保留一个角色'); return; }
-                if (confirm('删除角色会同时删除其所有对话，确定吗？')) {
-                    roles = roles.filter(r => r.id !== id);
-                    conversations = conversations.filter(c => c.roleId !== id);
-                    if (currentRoleId === id) {
-                        currentRoleId = roles[0].id;
-                        const firstConv = conversations.find(c => c.roleId === currentRoleId);
-                        currentConversationId = firstConv ? firstConv.id : createNewConversationForRole(currentRoleId);
-                    }
-                    await saveAllToLocal();
-                    renderUI();
+        document.querySelectorAll('.edit-role').forEach(btn => btn.addEventListener('click', (e)=>{ e.stopPropagation(); openRoleModal(btn.dataset.id); }));
+        document.querySelectorAll('.delete-role').forEach(btn => btn.addEventListener('click', async (e)=>{
+            e.stopPropagation();
+            if(roles.length<=1) { alert('至少保留一个角色'); return; }
+            if(confirm('删除角色会同时删除其所有对话')) {
+                roles = roles.filter(r=>r.id!==btn.dataset.id);
+                conversations = conversations.filter(c=>c.roleId!==btn.dataset.id);
+                if(currentRoleId===btn.dataset.id) {
+                    currentRoleId = roles[0].id;
+                    let fc = conversations.find(c=>c.roleId===currentRoleId);
+                    currentConversationId = fc ? fc.id : createNewConversationForRole(currentRoleId);
                 }
-            });
-        });
+                await saveAll(); renderUI();
+            }
+        }));
     }
 
     function renderConvList() {
         convListDiv.innerHTML = '';
-        const roleConvs = conversations.filter(c => c.roleId === currentRoleId);
-        roleConvs.forEach(conv => {
+        conversations.filter(c=>c.roleId===currentRoleId).forEach(conv => {
             const div = document.createElement('div');
-            div.className = `conv-item ${currentConversationId === conv.id ? 'active' : ''}`;
-            div.innerHTML = `
-                <span class="conv-name">💬 ${escapeHtml(conv.name)}</span>
-                <div class="conv-actions">
-                    <button class="icon-btn rename-conv" data-id="${conv.id}">✏️</button>
-                    <button class="icon-btn delete-conv" data-id="${conv.id}">🗑️</button>
-                </div>
-            `;
-            div.addEventListener('click', (e) => {
-                if (e.target.classList.contains('rename-conv') || e.target.classList.contains('delete-conv')) return;
-                switchConversation(conv.id);
-            });
+            div.className = `conv-item ${currentConversationId===conv.id?'active':''}`;
+            div.innerHTML = `<span class="conv-name">💬 ${escapeHtml(conv.name)}</span>
+                <div class="conv-actions"><button class="icon-btn rename-conv" data-id="${conv.id}">✏️</button><button class="icon-btn delete-conv" data-id="${conv.id}">🗑️</button></div>`;
+            div.addEventListener('click', (e) => { if(!e.target.classList.contains('rename-conv') && !e.target.classList.contains('delete-conv')) switchConversation(conv.id); });
             convListDiv.appendChild(div);
         });
-        document.querySelectorAll('.rename-conv').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const cid = btn.dataset.id;
-                const newName = prompt('输入新名称', conversations.find(c => c.id === cid)?.name);
-                if (newName) {
-                    const conv = conversations.find(c => c.id === cid);
-                    if (conv) conv.name = newName.slice(0, 20);
-                    await saveAllToLocal();
-                    renderConvList();
-                    const role = getCurrentRole();
-                    const convNow = getCurrentConversation();
-                    currentInfoSpan.innerText = `${role?.avatar} ${role?.name} · ${convNow?.name}`;
-                }
-            });
-        });
-        document.querySelectorAll('.delete-conv').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const cid = btn.dataset.id;
-                const roleConvsFilter = conversations.filter(c => c.roleId === currentRoleId);
-                if (roleConvsFilter.length <= 1) { alert('每个角色至少保留一个对话'); return; }
-                conversations = conversations.filter(c => c.id !== cid);
-                if (currentConversationId === cid) {
-                    const first = conversations.find(c => c.roleId === currentRoleId);
-                    currentConversationId = first.id;
-                }
-                await saveAllToLocal();
-                renderUI();
-            });
-        });
+        document.querySelectorAll('.rename-conv').forEach(btn => btn.addEventListener('click', async (e)=>{
+            e.stopPropagation();
+            let newName = prompt('新名称', conversations.find(c=>c.id===btn.dataset.id)?.name);
+            if(newName) { conversations.find(c=>c.id===btn.dataset.id).name = newName.slice(0,20); await saveAll(); renderConvList(); updateHeaderInfo(); }
+        }));
+        document.querySelectorAll('.delete-conv').forEach(btn => btn.addEventListener('click', async (e)=>{
+            e.stopPropagation();
+            let roleConvs = conversations.filter(c=>c.roleId===currentRoleId);
+            if(roleConvs.length<=1) { alert('每个角色至少保留一个对话'); return; }
+            conversations = conversations.filter(c=>c.id!==btn.dataset.id);
+            if(currentConversationId===btn.dataset.id) currentConversationId = conversations.find(c=>c.roleId===currentRoleId).id;
+            await saveAll(); renderUI();
+        }));
     }
 
     async function switchRole(roleId) {
         currentRoleId = roleId;
-        let convForRole = conversations.find(c => c.roleId === roleId);
-        if (!convForRole) {
-            const newId = createNewConversationForRole(roleId);
-            currentConversationId = newId;
-        } else {
-            currentConversationId = convForRole.id;
-        }
-        await saveAllToLocal();
-        renderUI();
+        let conv = conversations.find(c=>c.roleId===roleId);
+        currentConversationId = conv ? conv.id : createNewConversationForRole(roleId);
+        await saveAll(); renderUI();
     }
-
     async function switchConversation(convId) {
         currentConversationId = convId;
-        await saveAllToLocal();
-        renderMessages();
-        renderConvList();
-        const role = getCurrentRole();
-        const conv = getCurrentConversation();
-        currentInfoSpan.innerText = `${role?.avatar} ${role?.name} · ${conv?.name}`;
+        await saveAll(); renderMessages(); renderConvList(); updateHeaderInfo();
     }
-
     function createNewConversationForRole(roleId) {
-        const newId = 'conv_' + Date.now() + '_' + Math.random();
-        conversations.push({
-            id: newId,
-            roleId: roleId,
-            name: `对话 ${new Date().toLocaleTimeString()}`,
-            messages: [],
-            createdAt: Date.now()
-        });
-        saveAllToLocal(); // 异步但不等待
-        return newId;
+        let id = 'conv_'+Date.now()+'_'+Math.random();
+        conversations.push({ id, roleId, name: `对话 ${new Date().toLocaleTimeString()}`, messages: [] });
+        saveAll();
+        return id;
     }
 
     function renderMessages() {
         const conv = getCurrentConversation();
-        if (!conv) return;
+        if(!conv) return;
         messagesArea.innerHTML = '';
         conv.messages.forEach((msg, idx) => {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${msg.role}`;
-            msgDiv.setAttribute('data-msg-id', msg.id);
-            msgDiv.innerHTML = `
-                <div class="bubble">${escapeHtml(msg.content)}</div>
+            const div = document.createElement('div');
+            div.className = `message ${msg.role}`;
+            div.innerHTML = `<div class="bubble">${escapeHtml(msg.content)}</div>
                 <div class="msg-actions">
-                    ${msg.role === 'user' ? `<button class="msg-action-btn edit-msg" data-idx="${idx}">✏️ 编辑</button>` : ''}
+                    ${msg.role==='user'?`<button class="msg-action-btn edit-msg" data-idx="${idx}">✏️ 编辑</button>`:''}
                     <button class="msg-action-btn delete-msg" data-idx="${idx}">🗑️ 删除</button>
-                    ${msg.role === 'assistant' ? `<button class="msg-action-btn regenerate-msg" data-idx="${idx}">🔄 重新生成</button>` : ''}
-                </div>
-            `;
-            messagesArea.appendChild(msgDiv);
+                    ${msg.role==='assistant'?`<button class="msg-action-btn regenerate-msg" data-idx="${idx}">🔄 重新生成</button>`:''}
+                </div>`;
+            messagesArea.appendChild(div);
         });
-        document.querySelectorAll('.edit-msg').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const idx = parseInt(btn.dataset.idx);
-                await editUserMessage(idx);
-            });
-        });
-        document.querySelectorAll('.delete-msg').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const idx = parseInt(btn.dataset.idx);
-                await deleteMessageAndAfter(idx);
-            });
-        });
-        document.querySelectorAll('.regenerate-msg').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const idx = parseInt(btn.dataset.idx);
-                await regenerateAssistantMessage(idx);
-            });
-        });
+        document.querySelectorAll('.edit-msg').forEach(btn => btn.addEventListener('click', async (e)=>{ await editUserMessage(parseInt(btn.dataset.idx)); }));
+        document.querySelectorAll('.delete-msg').forEach(btn => btn.addEventListener('click', async (e)=>{ await deleteMessageAndAfter(parseInt(btn.dataset.idx)); }));
+        document.querySelectorAll('.regenerate-msg').forEach(btn => btn.addEventListener('click', async (e)=>{ await regenerateAssistantMessage(parseInt(btn.dataset.idx)); }));
         scrollToBottom();
     }
 
     async function editUserMessage(idx) {
         const conv = getCurrentConversation();
-        const msg = conv.messages[idx];
-        if (!msg || msg.role !== 'user') return;
-        const newContent = prompt('编辑消息内容', msg.content);
-        if (!newContent || newContent.trim() === '') return;
-        msg.content = newContent.trim();
-        conv.messages = conv.messages.slice(0, idx + 1);
-        await saveAllToLocal();
-        await sendRequestForLastMessage();
+        if(conv.messages[idx]?.role !== 'user') return;
+        let newContent = prompt('编辑消息', conv.messages[idx].content);
+        if(newContent && newContent.trim()) {
+            conv.messages[idx].content = newContent.trim();
+            conv.messages = conv.messages.slice(0, idx+1);
+            await saveAll();
+            await sendRequestForLastMessage();
+        }
     }
-
     async function deleteMessageAndAfter(idx) {
         const conv = getCurrentConversation();
-        if (idx < 0 || idx >= conv.messages.length) return;
+        if(idx<0 || idx>=conv.messages.length) return;
         conv.messages = conv.messages.slice(0, idx);
-        await saveAllToLocal();
+        await saveAll();
         renderMessages();
     }
-
     async function regenerateAssistantMessage(idx) {
         const conv = getCurrentConversation();
-        const msg = conv.messages[idx];
-        if (!msg || msg.role !== 'assistant') return;
+        if(conv.messages[idx]?.role !== 'assistant') return;
         conv.messages = conv.messages.slice(0, idx);
-        await saveAllToLocal();
+        await saveAll();
         renderMessages();
         await sendRequestForLastMessage();
     }
 
     async function sendRequestForLastMessage() {
         const conv = getCurrentConversation();
-        if (!conv.messages.length) return;
-        if (!apiKey) { alert('请先设置 DeepSeek API Key (点击右上角🔑)'); return; }
+        if(!conv.messages.length) return;
+        if(!apiKey) { alert('请设置 API Key'); return; }
         const role = getCurrentRole();
         let systemPrompt = role.systemPrompt || '你是一个有用的助手。';
         const modeParams = getModeParams();
         systemPrompt += modeParams.extra_system;
-        const historyMessages = conv.messages.map(m => ({ role: m.role, content: m.content }));
-        const apiMessages = [{ role: 'system', content: systemPrompt }, ...historyMessages];
+        const history = conv.messages.map(m=>({role:m.role,content:m.content}));
+        const apiMessages = [{role:'system',content:systemPrompt}, ...history];
         loadingDiv.style.display = 'flex';
         try {
-            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                body: JSON.stringify({
-                    model: 'deepseek-chat',
-                    messages: apiMessages,
-                    temperature: modeParams.temperature,
-                    max_tokens: modeParams.max_tokens,
-                    stream: false
-                })
+            const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+                body:JSON.stringify({model:'deepseek-chat',messages:apiMessages,temperature:modeParams.temperature,max_tokens:modeParams.max_tokens})
             });
-            if (!response.ok) throw new Error(`API错误: ${response.status}`);
-            const data = await response.json();
+            if(!res.ok) throw new Error(`API错误: ${res.status}`);
+            const data = await res.json();
             const reply = data.choices[0].message.content;
-            conv.messages.push({ id: 'msg_' + Date.now() + '_' + Math.random(), role: 'assistant', content: reply, timestamp: Date.now() });
-            await saveAllToLocal();
+            conv.messages.push({ id:'msg_'+Date.now()+'_'+Math.random(), role:'assistant', content:reply });
+            await saveAll();
             renderMessages();
-        } catch (error) { alert('请求失败: ' + error.message); }
+        } catch(e) { alert('请求失败: '+e.message); }
         finally { loadingDiv.style.display = 'none'; }
     }
 
     async function sendMessage(userInput) {
-        if (!userInput.trim()) return;
-        if (!apiKey) { alert('请先设置 DeepSeek API Key'); return; }
+        if(!userInput.trim() || !apiKey) { if(!apiKey) alert('请先设置 API Key'); return; }
         const conv = getCurrentConversation();
-        const userMsg = { id: 'msg_' + Date.now() + '_' + Math.random(), role: 'user', content: userInput, timestamp: Date.now() };
-        conv.messages.push(userMsg);
-        await saveAllToLocal();
+        conv.messages.push({ id:'msg_'+Date.now()+'_'+Math.random(), role:'user', content:userInput.trim() });
+        await saveAll();
         renderMessages();
         messageInput.value = '';
-
         const role = getCurrentRole();
-        const modeParams = getModeParams();
         let systemPrompt = role.systemPrompt || '你是一个有用的助手。';
+        const modeParams = getModeParams();
         systemPrompt += modeParams.extra_system;
-        const historyMessages = conv.messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
-        const apiMessages = [{ role: 'system', content: systemPrompt }, ...historyMessages];
+        const history = conv.messages.filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}));
+        const apiMessages = [{role:'system',content:systemPrompt}, ...history];
         loadingDiv.style.display = 'flex';
         try {
-            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: 'deepseek-chat', messages: apiMessages, temperature: modeParams.temperature, max_tokens: modeParams.max_tokens })
+            const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+                body:JSON.stringify({model:'deepseek-chat',messages:apiMessages,temperature:modeParams.temperature,max_tokens:modeParams.max_tokens})
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error?.message || '请求失败');
-            const reply = data.choices[0].message.content;
-            conv.messages.push({ id: 'msg_' + Date.now() + '_ai', role: 'assistant', content: reply, timestamp: Date.now() });
-            await saveAllToLocal();
+            const data = await res.json();
+            if(!res.ok) throw new Error(data.error?.message || '请求失败');
+            conv.messages.push({ id:'msg_'+Date.now()+'_ai', role:'assistant', content:data.choices[0].message.content });
+            await saveAll();
             renderMessages();
-        } catch (err) { alert('错误: ' + err.message); }
+        } catch(e) { alert('错误: '+e.message); }
         finally { loadingDiv.style.display = 'none'; }
     }
 
-    function openRoleModal(roleId = null) {
-        editingRoleId = roleId;
-        document.getElementById('roleModalTitle').innerText = roleId ? '编辑角色' : '新建角色';
-        if (roleId) {
-            const role = roles.find(r => r.id === roleId);
-            document.getElementById('roleName').value = role.name;
-            document.getElementById('rolePrompt').value = role.systemPrompt;
-            document.getElementById('roleAvatar').value = role.avatar || '';
+    function openRoleModal(id=null) {
+        editingRoleId = id;
+        document.getElementById('roleModalTitle').innerText = id ? '编辑角色' : '新建角色';
+        if(id) {
+            let r = roles.find(r=>r.id===id);
+            document.getElementById('roleName').value = r.name;
+            document.getElementById('rolePrompt').value = r.systemPrompt;
+            document.getElementById('roleAvatar').value = r.avatar || '';
         } else {
             document.getElementById('roleName').value = '';
             document.getElementById('rolePrompt').value = '';
@@ -936,91 +768,70 @@
         }
         roleModal.classList.add('show');
     }
-
     async function saveRole() {
-        const name = document.getElementById('roleName').value.trim();
-        const prompt = document.getElementById('rolePrompt').value.trim();
-        const avatar = document.getElementById('roleAvatar').value.trim() || '🎭';
-        if (!name) { alert('角色名称不能为空'); return; }
-        if (editingRoleId) {
-            const role = roles.find(r => r.id === editingRoleId);
-            if (role) { role.name = name; role.systemPrompt = prompt; role.avatar = avatar; }
+        let name = document.getElementById('roleName').value.trim();
+        let prompt = document.getElementById('rolePrompt').value.trim();
+        let avatar = document.getElementById('roleAvatar').value.trim() || '🎭';
+        if(!name) { alert('角色名称不能为空'); return; }
+        if(editingRoleId) {
+            let r = roles.find(r=>r.id===editingRoleId);
+            if(r) { r.name=name; r.systemPrompt=prompt; r.avatar=avatar; }
         } else {
-            const newId = 'role_' + Date.now();
-            roles.push({ id: newId, name, systemPrompt: prompt, avatar });
-            const newConvId = 'conv_' + Date.now();
-            conversations.push({ id: newConvId, roleId: newId, name: '新对话', messages: [] });
+            let newId = 'role_'+Date.now();
+            roles.push({ id:newId, name, systemPrompt:prompt, avatar });
+            conversations.push({ id:'conv_'+Date.now(), roleId:newId, name:'新对话', messages:[] });
         }
-        await saveAllToLocal();
+        await saveAll();
         renderUI();
         roleModal.classList.remove('show');
     }
 
     function scrollToBottom() { messagesArea.scrollTop = messagesArea.scrollHeight; }
-    function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){ if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; return m;}); }
+    function escapeHtml(str) { return str.replace(/[&<>]/g, m=> m==='&'?'&amp;': m==='<'?'&lt;':'&gt;'); }
 
-    // 主题初始化
-    async function initTheme() {
-        const savedTheme = await loadData(STORAGE_KEYS.THEME, 'light');
-        if (savedTheme === 'dark') document.body.classList.add('dark');
-        themeToggle.innerText = document.body.classList.contains('dark') ? '☀️' : '🌙';
+    // 主题切换（侧边栏）
+    function initTheme() {
+        const isDark = document.body.classList.contains('dark');
+        themeBtnSide.innerText = isDark ? '☀️ 日间模式' : '🌙 夜间模式';
     }
-    themeToggle.addEventListener('click', () => {
+    themeBtnSide.addEventListener('click', () => {
         document.body.classList.toggle('dark');
         const isDark = document.body.classList.contains('dark');
         saveData(STORAGE_KEYS.THEME, isDark ? 'dark' : 'light');
-        themeToggle.innerText = isDark ? '☀️' : '🌙';
+        themeBtnSide.innerText = isDark ? '☀️ 日间模式' : '🌙 夜间模式';
     });
 
-    // 备份导出 (从 IndexedDB 读取当前内存数据)
+    // 备份导出/导入
     async function exportBackup() {
-        const backupData = {
-            version: "1.0",
-            exportDate: new Date().toISOString(),
-            roles: roles,
-            conversations: conversations,
-            currentRoleId: currentRoleId,
-            currentConversationId: currentConversationId,
-            mode: currentMode
-        };
-        const jsonStr = JSON.stringify(backupData, null, 2);
-        const blob = new Blob([jsonStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+        let backup = { version:"1.0", exportDate:new Date().toISOString(), roles, conversations, currentRoleId, currentConversationId, mode:currentMode };
+        let a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)], {type:'application/json'}));
         a.download = `deepseek_backup_${new Date().toISOString().slice(0,19)}.json`;
-        document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(a.href);
         alert("✅ 备份已导出");
     }
-
     async function importBackup(file) {
-        const reader = new FileReader();
+        let reader = new FileReader();
         reader.onload = async function(e) {
             try {
-                const backup = JSON.parse(e.target.result);
-                if (!backup.roles || !backup.conversations) throw new Error("备份文件格式不正确");
-                if (confirm("⚠️ 导入备份将覆盖当前所有角色、对话和设置，且不可撤销！是否继续？")) {
-                    roles = backup.roles;
-                    conversations = backup.conversations;
-                    currentRoleId = backup.currentRoleId;
-                    currentConversationId = backup.currentConversationId;
-                    if (backup.mode) currentMode = backup.mode;
-                    if (!roles.find(r => r.id === currentRoleId)) currentRoleId = roles[0]?.id;
-                    if (!conversations.find(c => c.id === currentConversationId)) {
-                        const first = conversations.find(c => c.roleId === currentRoleId);
+                let backup = JSON.parse(e.target.result);
+                if(!backup.roles || !backup.conversations) throw new Error("格式错误");
+                if(confirm("导入将覆盖现有数据，不可撤销！")) {
+                    roles = backup.roles; conversations = backup.conversations;
+                    currentRoleId = backup.currentRoleId; currentConversationId = backup.currentConversationId;
+                    if(backup.mode) currentMode = backup.mode;
+                    if(!roles.find(r=>r.id===currentRoleId)) currentRoleId = roles[0]?.id;
+                    if(!conversations.find(c=>c.id===currentConversationId)) {
+                        let first = conversations.find(c=>c.roleId===currentRoleId);
                         currentConversationId = first ? first.id : null;
                     }
-                    await saveAllToLocal();
+                    await saveAll();
                     setMode(currentMode);
                     renderUI();
-                    alert("✅ 恢复成功！");
+                    alert("✅ 恢复成功");
                 }
-            } catch(err) {
-                alert("❌ 备份文件无效: " + err.message);
-            }
+            } catch(err) { alert("备份文件无效: "+err.message); }
         };
         reader.readAsText(file);
     }
@@ -1028,48 +839,30 @@
     // 事件绑定
     menuBtn.onclick = () => sidebar.classList.add('open');
     closeSidebarBtn.onclick = () => sidebar.classList.remove('open');
-    apiSettingsBtn.onclick = () => {
-        document.getElementById('apiKeyInput').value = apiKey;
-        apiModal.classList.add('show');
-    };
-    document.getElementById('saveApiBtn').onclick = async () => {
-        apiKey = document.getElementById('apiKeyInput').value;
-        await saveData(STORAGE_KEYS.API_KEY, apiKey);
-        apiModal.classList.remove('show');
-    };
+    apiSettingsBtn.onclick = () => { document.getElementById('apiKeyInput').value = apiKey; apiModal.classList.add('show'); };
+    document.getElementById('saveApiBtn').onclick = async () => { apiKey = document.getElementById('apiKeyInput').value; await saveData(STORAGE_KEYS.API_KEY, apiKey); apiModal.classList.remove('show'); };
     document.getElementById('closeApiBtn').onclick = () => apiModal.classList.remove('show');
     document.getElementById('confirmRoleBtn').onclick = saveRole;
     document.getElementById('cancelRoleBtn').onclick = () => roleModal.classList.remove('show');
     addRoleBtn.onclick = () => openRoleModal(null);
-    newConvBtn.onclick = async () => {
-        const newId = createNewConversationForRole(currentRoleId);
-        currentConversationId = newId;
-        await saveAllToLocal();
-        renderUI();
-    };
+    newConvBtn.onclick = async () => { let newId = createNewConversationForRole(currentRoleId); currentConversationId = newId; await saveAll(); renderUI(); };
     sendBtn.onclick = () => sendMessage(messageInput.value);
-    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(messageInput.value); });
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.addEventListener('click', () => setMode(btn.dataset.mode));
-    });
-
+    messageInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage(messageInput.value); });
     exportBackupBtn.onclick = exportBackup;
     importBackupBtn.onclick = () => importFileInput.click();
-    importFileInput.onchange = (e) => {
-        if (e.target.files.length) importBackup(e.target.files[0]);
-        importFileInput.value = '';
-    };
+    importFileInput.onchange = (e) => { if(e.target.files.length) importBackup(e.target.files[0]); importFileInput.value = ''; };
+    document.querySelectorAll('.mode-btn-side').forEach(btn => btn.addEventListener('click', ()=> setMode(btn.dataset.mode)));
 
-    // 启动应用
-    (async function bootstrap() {
+    // 解决键盘遮挡：点击输入框时滚动到底部
+    messageInput.addEventListener('focus', () => { setTimeout(() => { messageInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100); });
+
+    // 启动
+    (async function() {
         await loadDataFromLocal();
-        await initTheme();
+        initTheme();
         setMode(currentMode);
         renderUI();
-        // 确保每次离开页面时保存一次（可选）
-        window.addEventListener('beforeunload', () => {
-            saveAllToLocal();
-        });
+        window.addEventListener('beforeunload', () => saveAll());
     })();
 </script>
 </body>

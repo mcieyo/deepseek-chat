@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-    <title>DeepSeek 智能伴侣 · 双模式 + 备份恢复</title>
+    <title>DeepSeek 智能伴侣 · IndexedDB 大容量版</title>
+    <!-- 引入 localForage，提供简单的 IndexedDB API -->
+    <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -421,7 +423,6 @@
             <div id="convList"></div>
             <button id="newConvBtn" class="add-btn">+ 新对话</button>
         </div>
-        <!-- 新增备份恢复区 -->
         <div class="backup-section">
             <div class="section-title">💾 备份与恢复</div>
             <div class="backup-buttons">
@@ -486,7 +487,7 @@
 </div>
 
 <script>
-    // ---------- 存储KEY ----------
+    // ---------- 存储 KEY (用于 localForage) ----------
     const STORAGE_KEYS = {
         ROLES: 'deepseek_roles',
         CONVERSATIONS: 'deepseek_conversations',
@@ -502,12 +503,13 @@
         { id: 'role_2', name: '诗人', systemPrompt: '你是一位浪漫的诗人，用优美的语言回答。', avatar: '📖' }
     ];
 
+    // 全局数据
     let roles = [];
     let conversations = [];
     let currentRoleId = null;
     let currentConversationId = null;
-    let apiKey = localStorage.getItem(STORAGE_KEYS.API_KEY) || '';
-    let currentMode = localStorage.getItem(STORAGE_KEYS.MODE) || 'fast';
+    let apiKey = '';
+    let currentMode = 'fast';
 
     // DOM 元素
     const sidebar = document.getElementById('sidebar');
@@ -532,10 +534,98 @@
     const roleModal = document.getElementById('roleModal');
     let editingRoleId = null;
 
-    // 模式相关函数
+    // ---------- 封装 IndexedDB 存储 (使用 localForage) ----------
+    async function saveData(key, value) {
+        try {
+            await localforage.setItem(key, value);
+        } catch (err) {
+            console.error(`保存 ${key} 失败`, err);
+            if (err.name === 'QuotaExceededError') {
+                alert('⚠️ 存储空间不足！请删除一些旧对话或导出备份后清空数据。');
+            } else {
+                alert(`保存失败: ${err.message}`);
+            }
+        }
+    }
+
+    async function loadData(key, defaultValue) {
+        try {
+            const val = await localforage.getItem(key);
+            return val !== null ? val : defaultValue;
+        } catch (err) {
+            console.error(`读取 ${key} 失败`, err);
+            return defaultValue;
+        }
+    }
+
+    async function removeData(key) {
+        try {
+            await localforage.removeItem(key);
+        } catch (err) {
+            console.error(`删除 ${key} 失败`, err);
+        }
+    }
+
+    // 保存全部状态 (异步，不阻塞UI)
+    async function saveAllToLocal() {
+        await Promise.all([
+            saveData(STORAGE_KEYS.ROLES, roles),
+            saveData(STORAGE_KEYS.CONVERSATIONS, conversations),
+            saveData(STORAGE_KEYS.CURRENT_ROLE_ID, currentRoleId),
+            saveData(STORAGE_KEYS.CURRENT_CONV_ID, currentConversationId),
+            saveData(STORAGE_KEYS.API_KEY, apiKey),
+            saveData(STORAGE_KEYS.THEME, document.body.classList.contains('dark') ? 'dark' : 'light'),
+            saveData(STORAGE_KEYS.MODE, currentMode)
+        ]);
+    }
+
+    // 初始化加载数据
+    async function loadDataFromLocal() {
+        roles = await loadData(STORAGE_KEYS.ROLES, DEFAULT_ROLES);
+        conversations = await loadData(STORAGE_KEYS.CONVERSATIONS, []);
+        currentRoleId = await loadData(STORAGE_KEYS.CURRENT_ROLE_ID, null);
+        currentConversationId = await loadData(STORAGE_KEYS.CURRENT_CONV_ID, null);
+        apiKey = await loadData(STORAGE_KEYS.API_KEY, '');
+        const savedTheme = await loadData(STORAGE_KEYS.THEME, 'light');
+        if (savedTheme === 'dark') document.body.classList.add('dark');
+        currentMode = await loadData(STORAGE_KEYS.MODE, 'fast');
+
+        // 数据完整性修复
+        if (!roles.length) roles = DEFAULT_ROLES;
+        if (!currentRoleId || !roles.find(r => r.id === currentRoleId)) {
+            currentRoleId = roles[0]?.id;
+        }
+        // 为每个角色至少创建一个对话
+        for (let role of roles) {
+            if (!conversations.some(c => c.roleId === role.id)) {
+                const newId = 'conv_' + Date.now() + '_' + Math.random();
+                conversations.push({
+                    id: newId,
+                    roleId: role.id,
+                    name: '新对话',
+                    messages: [],
+                    createdAt: Date.now()
+                });
+            }
+        }
+        // 确保当前对话存在且属于当前角色
+        let convValid = conversations.find(c => c.id === currentConversationId && c.roleId === currentRoleId);
+        if (!convValid) {
+            const firstConv = conversations.find(c => c.roleId === currentRoleId);
+            if (firstConv) currentConversationId = firstConv.id;
+            else {
+                const newId = 'conv_' + Date.now() + '_' + Math.random();
+                conversations.push({ id: newId, roleId: currentRoleId, name: '新对话', messages: [] });
+                currentConversationId = newId;
+            }
+        }
+        await saveAllToLocal(); // 确保默认数据写入
+    }
+
+    // 模式相关
     function setMode(mode) {
         currentMode = mode;
-        localStorage.setItem(STORAGE_KEYS.MODE, mode);
+        saveData(STORAGE_KEYS.MODE, mode);
         document.querySelectorAll('.mode-btn').forEach(btn => {
             if (btn.dataset.mode === mode) btn.classList.add('active');
             else btn.classList.remove('active');
@@ -550,114 +640,11 @@
         }
     }
 
-    // 数据保存/加载核心
-    function saveAllToLocal() {
-        localStorage.setItem(STORAGE_KEYS.ROLES, JSON.stringify(roles));
-        localStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(conversations));
-        localStorage.setItem(STORAGE_KEYS.CURRENT_ROLE_ID, currentRoleId);
-        localStorage.setItem(STORAGE_KEYS.CURRENT_CONV_ID, currentConversationId);
-        if (apiKey) localStorage.setItem(STORAGE_KEYS.API_KEY, apiKey);
-    }
-
-    function loadDataFromLocal() {
-        const storedRoles = localStorage.getItem(STORAGE_KEYS.ROLES);
-        if (storedRoles) roles = JSON.parse(storedRoles);
-        else roles = DEFAULT_ROLES;
-
-        const storedConvs = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
-        if (storedConvs) conversations = JSON.parse(storedConvs);
-        else {
-            conversations = [];
-            roles.forEach(role => {
-                conversations.push({
-                    id: 'conv_' + Date.now() + '_' + role.id,
-                    roleId: role.id,
-                    name: '新对话',
-                    messages: [],
-                    createdAt: Date.now()
-                });
-            });
-        }
-
-        currentRoleId = localStorage.getItem(STORAGE_KEYS.CURRENT_ROLE_ID);
-        if (!currentRoleId || !roles.find(r => r.id === currentRoleId)) {
-            currentRoleId = roles[0]?.id;
-        }
-        currentConversationId = localStorage.getItem(STORAGE_KEYS.CURRENT_CONV_ID);
-        let convValid = conversations.find(c => c.id === currentConversationId && c.roleId === currentRoleId);
-        if (!convValid) {
-            const firstConv = conversations.find(c => c.roleId === currentRoleId);
-            if (firstConv) currentConversationId = firstConv.id;
-            else {
-                const newId = 'conv_' + Date.now();
-                conversations.push({ id: newId, roleId: currentRoleId, name: '新对话', messages: [] });
-                currentConversationId = newId;
-            }
-        }
-        saveAllToLocal();
-    }
-
-    // 导出备份 (完整状态)
-    function exportBackup() {
-        const backupData = {
-            version: "1.0",
-            exportDate: new Date().toISOString(),
-            roles: roles,
-            conversations: conversations,
-            currentRoleId: currentRoleId,
-            currentConversationId: currentConversationId,
-            mode: currentMode
-        };
-        const jsonStr = JSON.stringify(backupData, null, 2);
-        const blob = new Blob([jsonStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `deepseek_backup_${new Date().toISOString().slice(0,19)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        alert("✅ 备份已导出，请妥善保存文件。");
-    }
-
-    // 导入备份 (完全替换当前数据)
-    function importBackup(file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const backup = JSON.parse(e.target.result);
-                if (!backup.roles || !backup.conversations) {
-                    throw new Error("备份文件格式不正确");
-                }
-                if (confirm("⚠️ 导入备份将覆盖当前所有角色、对话和设置，且不可撤销！是否继续？")) {
-                    roles = backup.roles;
-                    conversations = backup.conversations;
-                    currentRoleId = backup.currentRoleId;
-                    currentConversationId = backup.currentConversationId;
-                    if (backup.mode) currentMode = backup.mode;
-                    // 确保数据完整性：如果引用的角色或对话不存在，修复
-                    if (!roles.find(r => r.id === currentRoleId)) currentRoleId = roles[0]?.id;
-                    if (!conversations.find(c => c.id === currentConversationId)) {
-                        const first = conversations.find(c => c.roleId === currentRoleId);
-                        currentConversationId = first ? first.id : null;
-                    }
-                    saveAllToLocal();
-                    setMode(currentMode);
-                    renderUI();
-                    alert("✅ 恢复成功！请刷新对话列表。");
-                }
-            } catch(err) {
-                alert("❌ 备份文件无效: " + err.message);
-            }
-        };
-        reader.readAsText(file);
-    }
-
-    // UI 渲染函数 (与之前相同，略作优化)
+    // 辅助函数
     function getCurrentConversation() { return conversations.find(c => c.id === currentConversationId); }
     function getCurrentRole() { return roles.find(r => r.id === currentRoleId); }
 
+    // 渲染 UI (所有会修改DOM的函数)
     function renderUI() {
         renderRoleList();
         renderConvList();
@@ -674,7 +661,7 @@
             const div = document.createElement('div');
             div.className = `role-item ${currentRoleId === role.id ? 'active' : ''}`;
             div.innerHTML = `
-                <span class="role-name">${role.avatar || '👤'} ${role.name}</span>
+                <span class="role-name">${role.avatar || '👤'} ${escapeHtml(role.name)}</span>
                 <div class="role-actions">
                     <button class="icon-btn edit-role" data-id="${role.id}">✏️</button>
                     <button class="icon-btn delete-role" data-id="${role.id}">🗑️</button>
@@ -689,26 +676,23 @@
         document.querySelectorAll('.edit-role').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const id = btn.dataset.id;
-                openRoleModal(id);
+                openRoleModal(btn.dataset.id);
             });
         });
         document.querySelectorAll('.delete-role').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const id = btn.dataset.id;
                 if (roles.length <= 1) { alert('至少保留一个角色'); return; }
                 if (confirm('删除角色会同时删除其所有对话，确定吗？')) {
-                    const newRoles = roles.filter(r => r.id !== id);
-                    const remainConvs = conversations.filter(c => c.roleId !== id);
-                    conversations = remainConvs;
-                    roles = newRoles;
+                    roles = roles.filter(r => r.id !== id);
+                    conversations = conversations.filter(c => c.roleId !== id);
                     if (currentRoleId === id) {
                         currentRoleId = roles[0].id;
                         const firstConv = conversations.find(c => c.roleId === currentRoleId);
                         currentConversationId = firstConv ? firstConv.id : createNewConversationForRole(currentRoleId);
                     }
-                    saveAllToLocal();
+                    await saveAllToLocal();
                     renderUI();
                 }
             });
@@ -722,7 +706,7 @@
             const div = document.createElement('div');
             div.className = `conv-item ${currentConversationId === conv.id ? 'active' : ''}`;
             div.innerHTML = `
-                <span class="conv-name">💬 ${conv.name}</span>
+                <span class="conv-name">💬 ${escapeHtml(conv.name)}</span>
                 <div class="conv-actions">
                     <button class="icon-btn rename-conv" data-id="${conv.id}">✏️</button>
                     <button class="icon-btn delete-conv" data-id="${conv.id}">🗑️</button>
@@ -735,20 +719,23 @@
             convListDiv.appendChild(div);
         });
         document.querySelectorAll('.rename-conv').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const cid = btn.dataset.id;
                 const newName = prompt('输入新名称', conversations.find(c => c.id === cid)?.name);
                 if (newName) {
                     const conv = conversations.find(c => c.id === cid);
                     if (conv) conv.name = newName.slice(0, 20);
-                    saveAllToLocal();
+                    await saveAllToLocal();
                     renderConvList();
+                    const role = getCurrentRole();
+                    const convNow = getCurrentConversation();
+                    currentInfoSpan.innerText = `${role?.avatar} ${role?.name} · ${convNow?.name}`;
                 }
             });
         });
         document.querySelectorAll('.delete-conv').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const cid = btn.dataset.id;
                 const roleConvsFilter = conversations.filter(c => c.roleId === currentRoleId);
@@ -758,13 +745,13 @@
                     const first = conversations.find(c => c.roleId === currentRoleId);
                     currentConversationId = first.id;
                 }
-                saveAllToLocal();
+                await saveAllToLocal();
                 renderUI();
             });
         });
     }
 
-    function switchRole(roleId) {
+    async function switchRole(roleId) {
         currentRoleId = roleId;
         let convForRole = conversations.find(c => c.roleId === roleId);
         if (!convForRole) {
@@ -773,13 +760,13 @@
         } else {
             currentConversationId = convForRole.id;
         }
-        saveAllToLocal();
+        await saveAllToLocal();
         renderUI();
     }
 
-    function switchConversation(convId) {
+    async function switchConversation(convId) {
         currentConversationId = convId;
-        saveAllToLocal();
+        await saveAllToLocal();
         renderMessages();
         renderConvList();
         const role = getCurrentRole();
@@ -796,7 +783,7 @@
             messages: [],
             createdAt: Date.now()
         });
-        saveAllToLocal();
+        saveAllToLocal(); // 异步但不等待
         return newId;
     }
 
@@ -819,27 +806,27 @@
             messagesArea.appendChild(msgDiv);
         });
         document.querySelectorAll('.edit-msg').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const idx = parseInt(btn.dataset.idx);
-                editUserMessage(idx);
+                await editUserMessage(idx);
             });
         });
         document.querySelectorAll('.delete-msg').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const idx = parseInt(btn.dataset.idx);
-                deleteMessageAndAfter(idx);
+                await deleteMessageAndAfter(idx);
             });
         });
         document.querySelectorAll('.regenerate-msg').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const idx = parseInt(btn.dataset.idx);
-                regenerateAssistantMessage(idx);
+                await regenerateAssistantMessage(idx);
             });
         });
         scrollToBottom();
     }
 
-    function editUserMessage(idx) {
+    async function editUserMessage(idx) {
         const conv = getCurrentConversation();
         const msg = conv.messages[idx];
         if (!msg || msg.role !== 'user') return;
@@ -847,15 +834,15 @@
         if (!newContent || newContent.trim() === '') return;
         msg.content = newContent.trim();
         conv.messages = conv.messages.slice(0, idx + 1);
-        saveAllToLocal();
-        sendRequestForLastMessage();
+        await saveAllToLocal();
+        await sendRequestForLastMessage();
     }
 
-    function deleteMessageAndAfter(idx) {
+    async function deleteMessageAndAfter(idx) {
         const conv = getCurrentConversation();
         if (idx < 0 || idx >= conv.messages.length) return;
         conv.messages = conv.messages.slice(0, idx);
-        saveAllToLocal();
+        await saveAllToLocal();
         renderMessages();
     }
 
@@ -864,7 +851,7 @@
         const msg = conv.messages[idx];
         if (!msg || msg.role !== 'assistant') return;
         conv.messages = conv.messages.slice(0, idx);
-        saveAllToLocal();
+        await saveAllToLocal();
         renderMessages();
         await sendRequestForLastMessage();
     }
@@ -896,7 +883,7 @@
             const data = await response.json();
             const reply = data.choices[0].message.content;
             conv.messages.push({ id: 'msg_' + Date.now() + '_' + Math.random(), role: 'assistant', content: reply, timestamp: Date.now() });
-            saveAllToLocal();
+            await saveAllToLocal();
             renderMessages();
         } catch (error) { alert('请求失败: ' + error.message); }
         finally { loadingDiv.style.display = 'none'; }
@@ -906,13 +893,13 @@
         if (!userInput.trim()) return;
         if (!apiKey) { alert('请先设置 DeepSeek API Key'); return; }
         const conv = getCurrentConversation();
-        const role = getCurrentRole();
-        const userMsg = { id: 'msg_' + Date.now(), role: 'user', content: userInput, timestamp: Date.now() };
+        const userMsg = { id: 'msg_' + Date.now() + '_' + Math.random(), role: 'user', content: userInput, timestamp: Date.now() };
         conv.messages.push(userMsg);
-        saveAllToLocal();
+        await saveAllToLocal();
         renderMessages();
         messageInput.value = '';
 
+        const role = getCurrentRole();
         const modeParams = getModeParams();
         let systemPrompt = role.systemPrompt || '你是一个有用的助手。';
         systemPrompt += modeParams.extra_system;
@@ -928,7 +915,7 @@
             if (!response.ok) throw new Error(data.error?.message || '请求失败');
             const reply = data.choices[0].message.content;
             conv.messages.push({ id: 'msg_' + Date.now() + '_ai', role: 'assistant', content: reply, timestamp: Date.now() });
-            saveAllToLocal();
+            await saveAllToLocal();
             renderMessages();
         } catch (err) { alert('错误: ' + err.message); }
         finally { loadingDiv.style.display = 'none'; }
@@ -950,7 +937,7 @@
         roleModal.classList.add('show');
     }
 
-    function saveRole() {
+    async function saveRole() {
         const name = document.getElementById('roleName').value.trim();
         const prompt = document.getElementById('rolePrompt').value.trim();
         const avatar = document.getElementById('roleAvatar').value.trim() || '🎭';
@@ -964,7 +951,7 @@
             const newConvId = 'conv_' + Date.now();
             conversations.push({ id: newConvId, roleId: newId, name: '新对话', messages: [] });
         }
-        saveAllToLocal();
+        await saveAllToLocal();
         renderUI();
         roleModal.classList.remove('show');
     }
@@ -972,45 +959,100 @@
     function scrollToBottom() { messagesArea.scrollTop = messagesArea.scrollHeight; }
     function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){ if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; return m;}); }
 
-    // 主题
-    function initTheme() {
-        const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
+    // 主题初始化
+    async function initTheme() {
+        const savedTheme = await loadData(STORAGE_KEYS.THEME, 'light');
         if (savedTheme === 'dark') document.body.classList.add('dark');
         themeToggle.innerText = document.body.classList.contains('dark') ? '☀️' : '🌙';
     }
     themeToggle.addEventListener('click', () => {
         document.body.classList.toggle('dark');
         const isDark = document.body.classList.contains('dark');
-        localStorage.setItem(STORAGE_KEYS.THEME, isDark ? 'dark' : 'light');
+        saveData(STORAGE_KEYS.THEME, isDark ? 'dark' : 'light');
         themeToggle.innerText = isDark ? '☀️' : '🌙';
     });
+
+    // 备份导出 (从 IndexedDB 读取当前内存数据)
+    async function exportBackup() {
+        const backupData = {
+            version: "1.0",
+            exportDate: new Date().toISOString(),
+            roles: roles,
+            conversations: conversations,
+            currentRoleId: currentRoleId,
+            currentConversationId: currentConversationId,
+            mode: currentMode
+        };
+        const jsonStr = JSON.stringify(backupData, null, 2);
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `deepseek_backup_${new Date().toISOString().slice(0,19)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        alert("✅ 备份已导出");
+    }
+
+    async function importBackup(file) {
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const backup = JSON.parse(e.target.result);
+                if (!backup.roles || !backup.conversations) throw new Error("备份文件格式不正确");
+                if (confirm("⚠️ 导入备份将覆盖当前所有角色、对话和设置，且不可撤销！是否继续？")) {
+                    roles = backup.roles;
+                    conversations = backup.conversations;
+                    currentRoleId = backup.currentRoleId;
+                    currentConversationId = backup.currentConversationId;
+                    if (backup.mode) currentMode = backup.mode;
+                    if (!roles.find(r => r.id === currentRoleId)) currentRoleId = roles[0]?.id;
+                    if (!conversations.find(c => c.id === currentConversationId)) {
+                        const first = conversations.find(c => c.roleId === currentRoleId);
+                        currentConversationId = first ? first.id : null;
+                    }
+                    await saveAllToLocal();
+                    setMode(currentMode);
+                    renderUI();
+                    alert("✅ 恢复成功！");
+                }
+            } catch(err) {
+                alert("❌ 备份文件无效: " + err.message);
+            }
+        };
+        reader.readAsText(file);
+    }
 
     // 事件绑定
     menuBtn.onclick = () => sidebar.classList.add('open');
     closeSidebarBtn.onclick = () => sidebar.classList.remove('open');
-    apiSettingsBtn.onclick = () => apiModal.classList.add('show');
-    document.getElementById('saveApiBtn').onclick = () => {
+    apiSettingsBtn.onclick = () => {
+        document.getElementById('apiKeyInput').value = apiKey;
+        apiModal.classList.add('show');
+    };
+    document.getElementById('saveApiBtn').onclick = async () => {
         apiKey = document.getElementById('apiKeyInput').value;
-        localStorage.setItem(STORAGE_KEYS.API_KEY, apiKey);
+        await saveData(STORAGE_KEYS.API_KEY, apiKey);
         apiModal.classList.remove('show');
     };
     document.getElementById('closeApiBtn').onclick = () => apiModal.classList.remove('show');
     document.getElementById('confirmRoleBtn').onclick = saveRole;
     document.getElementById('cancelRoleBtn').onclick = () => roleModal.classList.remove('show');
     addRoleBtn.onclick = () => openRoleModal(null);
-    newConvBtn.onclick = () => {
+    newConvBtn.onclick = async () => {
         const newId = createNewConversationForRole(currentRoleId);
         currentConversationId = newId;
-        saveAllToLocal();
+        await saveAllToLocal();
         renderUI();
     };
     sendBtn.onclick = () => sendMessage(messageInput.value);
     messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(messageInput.value); });
     document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => { setMode(btn.dataset.mode); });
+        btn.addEventListener('click', () => setMode(btn.dataset.mode));
     });
 
-    // 备份按钮
     exportBackupBtn.onclick = exportBackup;
     importBackupBtn.onclick = () => importFileInput.click();
     importFileInput.onchange = (e) => {
@@ -1018,11 +1060,17 @@
         importFileInput.value = '';
     };
 
-    // 启动
-    loadDataFromLocal();
-    initTheme();
-    setMode(currentMode);
-    renderUI();
+    // 启动应用
+    (async function bootstrap() {
+        await loadDataFromLocal();
+        await initTheme();
+        setMode(currentMode);
+        renderUI();
+        // 确保每次离开页面时保存一次（可选）
+        window.addEventListener('beforeunload', () => {
+            saveAllToLocal();
+        });
+    })();
 </script>
 </body>
 </html>
